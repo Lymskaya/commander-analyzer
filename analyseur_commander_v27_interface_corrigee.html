@@ -1,0 +1,2092 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Diagnostic Commander — Analyseur de deck EDH</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Source+Sans+3:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+:root{
+  --table: #1b2029;
+  --table-2: #232a36;
+  --table-3: #2a3140;
+  --stock: #f1e8d6;
+  --stock-2: #e7dabb;
+  --umber: #2a2013;
+  --umber-soft: #574a34;
+  --bone: #ece5d4;
+  --bone-dim: #b7ae98;
+  --brass: #c99a3a;
+  --brass-deep: #9c7527;
+  --line-dark: rgba(233,226,201,0.14);
+  --line-card: rgba(42,32,19,0.16);
+  --w: #cbb98a;
+  --u: #3f7fb0;
+  --b: #7a6a86;
+  --r: #bb4f38;
+  --g: #3f7d55;
+  --c: #9b9686;
+  --ok: #5f9468;
+  --bad: #b0503b;
+  --radius: 3px;
+}
+
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:
+    radial-gradient(ellipse at 20% -10%, rgba(201,154,58,0.08), transparent 45%),
+    var(--table);
+  color:var(--bone);
+  font-family:'Source Sans 3', sans-serif;
+  font-size:15px;
+  line-height:1.5;
+  padding:0 0 80px;
+}
+::selection{background:var(--brass); color:var(--umber);}
+:focus-visible{outline:2px solid var(--brass); outline-offset:2px;}
+
+.wrap{max-width:980px; margin:0 auto; padding:0 24px;}
+
+/* ---------- Header ---------- */
+header.hero{
+  padding:56px 0 36px;
+  border-bottom:1px solid var(--line-dark);
+  margin-bottom:36px;
+}
+.eyebrow{
+  font-family:'JetBrains Mono', monospace;
+  font-size:11.5px;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+  color:var(--brass);
+  display:flex;
+  align-items:center;
+  gap:10px;
+  margin-bottom:14px;
+}
+.eyebrow::before{content:"§"; font-family:'Fraunces',serif; font-size:16px;}
+h1{
+  font-family:'Fraunces', serif;
+  font-weight:600;
+  font-size:clamp(32px,5vw,50px);
+  line-height:1.04;
+  margin:0 0 14px;
+  color:var(--bone);
+  letter-spacing:-0.01em;
+}
+h1 em{font-style:italic; color:var(--brass); font-weight:400;}
+.hero p{
+  max-width:60ch;
+  color:var(--bone-dim);
+  font-size:15.5px;
+  margin:0;
+}
+
+/* ---------- Input card (a card on the table) ---------- */
+.deskcard{
+  background:var(--stock);
+  color:var(--umber);
+  border-radius:var(--radius);
+  padding:28px 28px 24px;
+  box-shadow:0 18px 40px -18px rgba(0,0,0,0.55), 0 1px 0 rgba(255,255,255,0.04) inset;
+  position:relative;
+  margin-bottom:28px;
+}
+.deskcard::before{
+  content:"";
+  position:absolute; top:0; left:28px; right:28px; height:1px;
+  background:var(--line-card);
+}
+.deskcard h2{
+  font-family:'Fraunces', serif;
+  font-weight:600;
+  font-size:19px;
+  margin:0 0 4px;
+  color:var(--umber);
+}
+.deskcard .sub{
+  font-size:13.5px;
+  color:var(--umber-soft);
+  margin:0 0 20px;
+}
+label{
+  display:block;
+  font-family:'JetBrains Mono', monospace;
+  font-size:11px;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  color:var(--umber-soft);
+  margin-bottom:6px;
+}
+input[type=text], textarea{
+  width:100%;
+  font-family:'Source Sans 3', sans-serif;
+  font-size:14.5px;
+  color:var(--umber);
+  background:#fbf7ee;
+  border:1px solid var(--line-card);
+  border-radius:2px;
+  padding:10px 12px;
+  resize:vertical;
+}
+input[type=text]{margin-bottom:18px;}
+textarea{min-height:220px; line-height:1.55; font-family:'JetBrains Mono', monospace; font-size:12.8px;}
+.field-row{display:flex; gap:16px; flex-wrap:wrap; margin-bottom:4px;}
+.field-row > div{flex:1; min-width:220px;}
+.hint{font-size:12px; color:var(--umber-soft); margin-top:6px;}
+.actions{display:flex; align-items:center; gap:14px; margin-top:18px; flex-wrap:wrap;}
+button{
+  font-family:'JetBrains Mono', monospace;
+  font-size:12.5px;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+  cursor:pointer;
+  border-radius:2px;
+  padding:12px 20px;
+  border:1px solid transparent;
+  transition:transform .12s ease, background .15s ease;
+}
+button.primary{
+  background:var(--umber);
+  color:var(--stock);
+  border-color:var(--umber);
+}
+button.primary:hover{background:#3a2d1a;}
+button.primary:active{transform:translateY(1px);}
+button.ghost{
+  background:transparent;
+  color:var(--umber-soft);
+  border-color:var(--line-card);
+}
+button.ghost:hover{color:var(--umber); border-color:var(--umber-soft);}
+button:disabled{opacity:.5; cursor:progress;}
+
+.status-line{
+  font-family:'JetBrains Mono', monospace;
+  font-size:12.5px;
+  color:var(--bone-dim);
+  min-height:20px;
+  margin:6px 0 0;
+}
+.status-line.err{color:#e08a71;}
+
+/* ---------- Tabs / dividers ---------- */
+#results{display:none;}
+.tabbar{
+  display:flex;
+  flex-wrap:wrap;
+  gap:2px;
+  margin:8px 0 0;
+  border-bottom:1px solid var(--line-dark);
+}
+.tab{
+  font-family:'JetBrains Mono', monospace;
+  font-size:11.5px;
+  letter-spacing:.05em;
+  text-transform:uppercase;
+  color:var(--bone-dim);
+  background:var(--table-2);
+  border:1px solid var(--line-dark);
+  border-bottom:none;
+  padding:10px 14px;
+  border-radius:3px 3px 0 0;
+  cursor:pointer;
+  position:relative;
+  top:1px;
+}
+.tab.active{color:var(--brass); background:var(--table-3); border-color:var(--line-dark);}
+.tabpanel{display:none; padding-top:28px;}
+.tabpanel.active{display:block;}
+
+/* ---------- Ledger panel (stat readouts) ---------- */
+.panel{
+  background:var(--table-2);
+  border:1px solid var(--line-dark);
+  border-radius:3px;
+  padding:22px 24px;
+  margin-bottom:20px;
+}
+.panel h3{
+  font-family:'Fraunces', serif;
+  font-weight:600;
+  font-size:16.5px;
+  margin:0 0 4px;
+  color:var(--bone);
+}
+.panel .panel-sub{font-size:12.5px; color:var(--bone-dim); margin:0 0 18px;}
+
+.statgrid{display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:1px; background:var(--line-dark); border:1px solid var(--line-dark); border-radius:3px; overflow:hidden;}
+.stat{background:var(--table-2); padding:16px 16px;}
+.stat .num{font-family:'JetBrains Mono', monospace; font-size:26px; font-weight:700; color:var(--brass); line-height:1;}
+.stat .lbl{font-size:11.5px; color:var(--bone-dim); margin-top:6px; text-transform:uppercase; letter-spacing:.04em;}
+
+/* mana curve — signature viz: stacked "cards" per CMC bucket */
+.curve{display:flex; align-items:flex-end; gap:14px; min-height:220px; padding:10px 4px 0; overflow-x:auto;}
+.curve-col{display:flex; flex-direction:column; align-items:center; gap:8px; min-width:44px;}
+.curve-stack{display:flex; flex-direction:column-reverse; gap:2px; align-items:center;}
+.curve-block{width:34px; height:11px; border-radius:2px; box-shadow:0 1px 0 rgba(0,0,0,0.25) inset;}
+.curve-block.creature{background:var(--g);}
+.curve-block.spell{background:var(--brass);}
+.curve-count{font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--bone); min-height:16px;}
+.curve-label{font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--bone-dim); border-top:1px solid var(--line-dark); padding-top:6px; width:100%; text-align:center;}
+.legend{display:flex; gap:18px; margin-top:16px; font-size:12.5px; color:var(--bone-dim);}
+.legend span{display:inline-flex; align-items:center; gap:6px;}
+.legend i{width:10px; height:10px; border-radius:2px; display:inline-block;}
+
+/* ledger rows (types / categories / manabase) */
+.ledger{display:flex; flex-direction:column;}
+.ledger-row{
+  display:grid;
+  grid-template-columns:150px 1fr 46px;
+  align-items:center;
+  gap:14px;
+  padding:9px 0;
+  border-bottom:1px solid var(--line-dark);
+}
+.ledger-row:last-child{border-bottom:none;}
+.ledger-name{font-size:13.5px; color:var(--bone);}
+.ledger-bar-track{background:var(--table); border-radius:2px; height:9px; overflow:hidden;}
+.ledger-bar-fill{height:100%; background:var(--brass); border-radius:2px;}
+.ledger-num{font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--bone-dim); text-align:right;}
+
+/* categories with expandable card list */
+details.cat{border-bottom:1px solid var(--line-dark); padding:12px 0;}
+details.cat:last-child{border-bottom:none;}
+details.cat summary{
+  cursor:pointer; list-style:none; display:flex; align-items:center; justify-content:space-between;
+  font-size:14px; color:var(--bone);
+}
+details.cat summary::-webkit-details-marker{display:none;}
+details.cat summary .catname{display:flex; align-items:center; gap:10px;}
+details.cat summary .catname .desc{color:var(--bone-dim); font-size:12px; font-weight:400;}
+details.cat summary .caret{font-family:'JetBrains Mono',monospace; color:var(--brass); font-size:12px;}
+details.cat[open] summary .caret{transform:rotate(90deg); display:inline-block;}
+.cat-count{font-family:'JetBrains Mono',monospace; color:var(--brass); font-weight:700; font-size:14px;}
+.cardlist{display:flex; flex-wrap:wrap; gap:6px 10px; margin-top:10px; padding-left:2px;}
+.cardlist span{
+  font-size:12.5px; color:var(--bone-dim); background:var(--table);
+  border:1px solid var(--line-dark); border-radius:2px; padding:3px 8px;
+}
+.cardlist span b{color:var(--bone); font-weight:600;}
+
+/* color pips */
+.pip{
+  width:22px; height:22px; border-radius:50%;
+  display:inline-flex; align-items:center; justify-content:center;
+  font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700;
+  color:var(--table); border:1px solid rgba(0,0,0,0.25);
+}
+.pip-row{display:flex; gap:8px; align-items:center; margin-bottom:4px;}
+
+/* recommendations */
+.reco{display:flex; gap:12px; padding:13px 0; border-bottom:1px solid var(--line-dark); align-items:flex-start;}
+.reco:last-child{border-bottom:none;}
+.reco .mark{font-family:'JetBrains Mono',monospace; font-size:13px; margin-top:1px; flex-shrink:0; width:16px; text-align:center;}
+.reco.warn .mark{color:var(--bad);}
+.reco.ok .mark{color:var(--ok);}
+.reco.info .mark{color:var(--brass);}
+.reco p{margin:0; font-size:13.8px; color:var(--bone); line-height:1.5;}
+.reco p b{color:var(--brass);}
+
+.notfound-box{
+  background:rgba(176,80,59,0.12); border:1px solid rgba(176,80,59,0.4);
+  border-radius:3px; padding:14px 16px; margin-top:16px; font-size:13px; color:#e5b3a2;
+}
+.notfound-box b{color:#f0cfc2;}
+
+footer{
+  max-width:980px; margin:50px auto 0; padding:20px 24px 0;
+  border-top:1px solid var(--line-dark);
+  color:var(--bone-dim); font-size:12px;
+}
+
+@media (max-width:640px){
+  .ledger-row{grid-template-columns:110px 1fr 38px; gap:8px;}
+  .statgrid{grid-template-columns:repeat(2,1fr);}
+}
+
+@media (prefers-reduced-motion: reduce){
+  * { transition:none !important; }
+}
+
+/* ---------- Mobile / touch improvements ---------- */
+html { -webkit-text-size-adjust:100%; }
+body { overflow-x:hidden; }
+button, input, textarea { -webkit-tap-highlight-color: transparent; }
+
+@media (max-width: 700px){
+  body{
+    font-size:15px;
+    padding-bottom:32px;
+  }
+  .wrap{
+    width:100%;
+    max-width:none;
+    padding:0 12px;
+  }
+  header.hero{
+    padding:28px 4px 22px;
+    margin-bottom:18px;
+  }
+  .eyebrow{
+    font-size:10px;
+    margin-bottom:10px;
+  }
+  h1{
+    font-size:34px;
+    line-height:1.02;
+    margin-bottom:10px;
+  }
+  .hero p{
+    font-size:14px;
+    line-height:1.45;
+  }
+
+  .deskcard{
+    padding:18px 14px 16px;
+    margin-bottom:16px;
+    border-radius:5px;
+  }
+  .deskcard h2{ font-size:18px; }
+  .deskcard .sub{ font-size:12.5px; line-height:1.45; }
+
+  .field-row{
+    display:block;
+    margin:0;
+  }
+  .field-row > div{
+    min-width:0;
+    width:100%;
+  }
+  input[type=text]{
+    font-size:16px;
+    min-height:46px;
+    padding:11px 12px;
+    margin-bottom:14px;
+  }
+  textarea{
+    min-height:260px;
+    font-size:13px;
+    line-height:1.5;
+    padding:11px 12px;
+  }
+
+  .actions{
+    display:grid;
+    grid-template-columns:1fr;
+    gap:8px;
+    margin-top:14px;
+  }
+  button{
+    width:100%;
+    min-height:46px;
+    font-size:12px;
+    padding:12px 14px;
+  }
+  .hint{
+    font-size:11.5px;
+    line-height:1.45;
+  }
+  .status-line{
+    font-size:11.5px;
+    line-height:1.4;
+  }
+
+  /* Horizontal tab strip, easy to swipe with a thumb. */
+  .tabbar{
+    position:sticky;
+    top:0;
+    z-index:20;
+    margin:0 -12px;
+    padding:7px 12px 0;
+    overflow-x:auto;
+    overflow-y:hidden;
+    flex-wrap:nowrap;
+    gap:5px;
+    background:rgba(27,32,41,.96);
+    backdrop-filter:blur(10px);
+    -webkit-overflow-scrolling:touch;
+    scrollbar-width:none;
+  }
+  .tabbar::-webkit-scrollbar{ display:none; }
+  .tab{
+    flex:0 0 auto;
+    white-space:nowrap;
+    min-height:40px;
+    padding:10px 12px;
+    font-size:10.5px;
+  }
+
+  .tabpanel{
+    padding-top:18px;
+  }
+  .panel{
+    padding:16px 13px;
+    margin-bottom:12px;
+    border-radius:5px;
+  }
+  .panel h3{
+    font-size:16px;
+    line-height:1.2;
+  }
+  .panel .panel-sub{
+    font-size:11.5px;
+    line-height:1.4;
+    margin-bottom:13px;
+  }
+
+  .statgrid{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:1px;
+  }
+  .stat{
+    min-width:0;
+    padding:13px 10px;
+  }
+  .stat .num{
+    font-size:22px;
+    overflow-wrap:anywhere;
+  }
+  .stat .lbl{
+    font-size:9.5px;
+    line-height:1.25;
+  }
+
+  .curve{
+    min-height:190px;
+    gap:8px;
+    padding-left:0;
+    padding-right:0;
+  }
+  .curve-col{ min-width:35px; }
+  .curve-block{
+    width:27px;
+    height:9px;
+  }
+
+  .ledger-row{
+    grid-template-columns:minmax(90px, .8fr) 1fr 34px;
+    gap:8px;
+    padding:9px 0;
+  }
+  .ledger-name{
+    font-size:12px;
+    overflow-wrap:anywhere;
+  }
+  .ledger-num{ font-size:11.5px; }
+
+  .pip{
+    width:28px;
+    height:28px;
+  }
+
+  .cardlist{
+    gap:5px;
+  }
+  .cardlist span{
+    font-size:11.5px;
+    padding:5px 7px;
+  }
+
+  details.cat summary{
+    min-height:42px;
+    font-size:13px;
+  }
+  details.cat summary .catname{
+    gap:7px;
+  }
+  details.cat summary .catname .desc{
+    font-size:10.5px;
+  }
+
+  .reco{
+    gap:8px;
+    padding:11px 0;
+  }
+  .reco p{
+    font-size:12.5px;
+    line-height:1.45;
+  }
+
+  footer{
+    margin-top:28px;
+    padding:15px 4px 0;
+    font-size:10.5px;
+  }
+
+  /* Keep code-like deck input comfortable on narrow screens. */
+  code{
+    overflow-wrap:anywhere;
+  }
+}
+
+@media (max-width:380px){
+  .wrap{ padding:0 9px; }
+  .tabbar{ margin-left:-9px; margin-right:-9px; padding-left:9px; padding-right:9px; }
+  h1{ font-size:30px; }
+  .stat .num{ font-size:20px; }
+  .ledger-row{ grid-template-columns:84px 1fr 30px; }
+}
+
+
+.mobile-tab-hint{
+  display:none;
+  color:var(--bone-dim);
+  font-family:'JetBrains Mono',monospace;
+  font-size:10px;
+  text-align:center;
+  padding:7px 0 0;
+}
+@media (max-width:700px){
+  .mobile-tab-hint{ display:block; }
+}
+
+
+.role-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+.role-card{display:grid;grid-template-columns:115px 1fr 32px;gap:8px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line-dark)}
+.role-title{font-size:12px;color:var(--bone)}
+.role-bar{height:8px;background:var(--table);border-radius:3px;overflow:hidden}
+.role-bar span{display:block;height:100%;background:var(--brass);border-radius:3px}
+.role-count{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--bone-dim);text-align:right}
+@media(max-width:700px){.role-grid{grid-template-columns:1fr}.role-card{grid-template-columns:105px 1fr 30px}}
+
+.archetype-hero{padding:18px 0 20px;border-bottom:1px solid var(--line-dark);margin-bottom:16px}
+.archetype-kicker{display:block;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.12em;color:var(--brass);margin-bottom:5px}
+.archetype-main strong{display:block;font-family:'Fraunces',serif;font-size:28px;color:var(--bone)}
+.archetype-secondary{display:block;color:var(--bone-dim);font-size:13px;margin-top:4px}
+.theme-list{display:flex;flex-direction:column}
+.theme-row{display:grid;grid-template-columns:170px 1fr 42px;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line-dark)}
+.theme-name{font-size:12.5px;color:var(--bone);display:flex;align-items:center;gap:8px}
+.theme-rank{font-family:'JetBrains Mono',monospace;color:var(--brass);font-size:10px;width:16px}
+.theme-bar{height:9px;background:var(--table);border-radius:3px;overflow:hidden}
+.theme-bar span{display:block;height:100%;background:var(--brass);border-radius:3px}
+.theme-value{font-family:'JetBrains Mono',monospace;color:var(--bone-dim);text-align:right;font-size:12px}
+@media(max-width:700px){
+  .theme-row{grid-template-columns:120px 1fr 34px;gap:7px}
+  .archetype-main strong{font-size:24px}
+}
+
+
+.coherence-box{display:grid;grid-template-columns:auto 1fr;column-gap:16px;align-items:center;padding:16px 0}
+.coherence-score{font-family:'JetBrains Mono',monospace;font-size:42px;font-weight:700;color:var(--brass);line-height:1}
+.coherence-score span{font-size:15px;color:var(--bone-dim);font-weight:400}
+.coherence-label{font-family:'Fraunces',serif;font-size:21px;color:var(--bone)}
+.coherence-box p{grid-column:2;margin:5px 0 0;color:var(--bone-dim);font-size:13px;line-height:1.45}
+@media(max-width:700px){
+  .coherence-box{column-gap:12px}
+  .coherence-score{font-size:36px}
+  .coherence-label{font-size:19px}
+}
+
+
+.guide-item{display:flex;gap:10px;align-items:flex-start;padding:11px 0;border-bottom:1px solid var(--line-dark)}
+.guide-item:last-child{border-bottom:none}
+.guide-item>span{font-family:'JetBrains Mono',monospace;font-weight:700;width:20px;text-align:center}
+.guide-item.good>span{color:var(--ok)}
+.guide-item.bad>span{color:var(--bad)}
+.guide-item p{margin:0;color:var(--bone);font-size:13px;line-height:1.45}
+.improvement-step{display:grid;grid-template-columns:34px 1fr;gap:11px;padding:13px 0;border-bottom:1px solid var(--line-dark)}
+.improvement-step:last-child{border-bottom:none}
+.step-number{width:28px;height:28px;border:1px solid var(--brass);color:var(--brass);border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:12px}
+.improvement-step b{color:var(--bone);font-size:13px}
+.improvement-step p{margin:4px 0 0;color:var(--bone-dim);font-size:12.5px;line-height:1.45}
+
+
+/* ===== V16 visual skin only: verified engine untouched ===== */
+:root{
+  --v16-bg:#0e1017;
+  --v16-panel:#181b25;
+  --v16-panel2:#202431;
+  --v16-line:rgba(255,255,255,.09);
+  --v16-text:#f8f5ef;
+  --v16-muted:#a4a9b7;
+  --v16-pink:#ff1975;
+  --v16-pink2:#ff4b9a;
+  --v16-gold:#ffc45e;
+  --v16-cyan:#55d8ff;
+}
+html,body{
+  background:
+    radial-gradient(900px 520px at 50% -90px,rgba(255,25,117,.17),transparent 62%),
+    radial-gradient(650px 420px at 0 25%,rgba(85,216,255,.07),transparent 60%),
+    linear-gradient(180deg,#0e1017,#151824 58%,#0d0f15)!important;
+  color:var(--v16-text)!important;
+}
+header{
+  position:relative!important;
+  overflow:hidden!important;
+  padding:42px 20px 32px!important;
+  border-radius:0 0 28px 28px!important;
+  background:
+    linear-gradient(180deg,rgba(0,0,0,.02),rgba(0,0,0,.72)),
+    radial-gradient(circle at 73% 35%,rgba(255,196,94,.55),transparent 18%),
+    radial-gradient(circle at 39% 52%,rgba(255,25,117,.42),transparent 31%),
+    linear-gradient(125deg,#35142f,#192b4b 52%,#602817)!important;
+  box-shadow:0 18px 50px rgba(0,0,0,.32)!important;
+}
+header h1{
+  color:#fff!important;
+  font-size:clamp(34px,8vw,56px)!important;
+  letter-spacing:-.035em!important;
+}
+header h1 em{
+  color:var(--v16-pink2)!important;
+}
+header p{
+  color:#e0e2e8!important;
+  max-width:720px!important;
+}
+.deskcard,.panel{
+  background:linear-gradient(145deg,var(--v16-panel2),var(--v16-panel))!important;
+  border:1px solid var(--v16-line)!important;
+  border-radius:15px!important;
+  box-shadow:0 14px 38px rgba(0,0,0,.22)!important;
+}
+#listInput,#cmdInput{
+  background:#101219!important;
+  color:#f8f5ef!important;
+  border:1px solid rgba(255,255,255,.10)!important;
+  border-radius:10px!important;
+}
+#listInput{min-height:210px}
+#analyzeBtn{
+  width:100%!important;
+  min-height:50px!important;
+  border:0!important;
+  border-radius:11px!important;
+  background:linear-gradient(135deg,var(--v16-pink),#ff0f57)!important;
+  color:#fff!important;
+  font-weight:800!important;
+  font-size:15px!important;
+  box-shadow:0 10px 28px rgba(255,25,117,.22)!important;
+}
+#exampleBtn,#resetBtn{
+  border-radius:10px!important;
+}
+.statgrid{gap:9px!important}
+.stat{
+  background:rgba(255,255,255,.025)!important;
+  border-color:var(--v16-line)!important;
+  border-radius:11px!important;
+}
+.tabbar{
+  border-bottom-color:rgba(255,25,117,.25)!important;
+}
+.tab.active{
+  color:var(--v16-pink2)!important;
+}
+.coherence-score{
+  color:var(--v16-gold)!important;
+}
+@media(max-width:700px){
+  header{padding:30px 15px 25px!important}
+  #listInput{min-height:230px}
+  .actions{
+    display:grid!important;
+    grid-template-columns:1fr!important;
+    gap:8px!important;
+  }
+}
+
+
+#comboPanel{margin-top:14px}
+.combo-grid{display:grid;gap:12px}
+.combo-card{background:linear-gradient(145deg,#202433,#171a24);border:1px solid rgba(255,255,255,.09);border-radius:14px;padding:14px}
+.combo-card h3{margin:0 0 6px;color:#ff4b9a}
+.combo-card .combo-step{color:#d8dbe4;font-size:13px;line-height:1.45}
+.combo-card .combo-meta{color:#ffc45e;font-size:11px;margin-top:8px}
+.combo-empty{padding:18px;border-radius:14px;background:#171a24;color:#a8adba}
+
+
+/* Removed from the interface by design */
+[data-section="functional-category"],
+[data-section="card-analysis"],
+.functional-category,
+.card-analysis{display:none!important}
+
+
+/* ===== Combo panel: isolated, layout-safe ===== */
+#comboPanel{
+  display:none;
+  width:100%;
+  box-sizing:border-box;
+  margin:14px 0 0;
+  padding:14px;
+  background:linear-gradient(145deg,#202433,#171a24);
+  border:1px solid rgba(255,255,255,.09);
+  border-radius:15px;
+}
+#comboPanel .combo-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+#comboPanel .combo-card{min-width:0;background:#141720;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px}
+#comboPanel .combo-card h3{margin:0 0 9px;color:#ff4b9a;font-size:16px}
+#comboPanel .combo-pieces{display:flex;flex-wrap:wrap;gap:6px}
+#comboPanel .combo-piece{max-width:100%;overflow-wrap:anywhere;padding:5px 8px;border-radius:7px;background:#0d0f15;color:#ffd278;font-size:11px}
+#comboPanel .combo-result{margin-top:9px;color:#9fe7ff;font-size:12px;line-height:1.45}
+#comboPanel .combo-steps{margin-top:9px;color:#d4d7df;font-size:11px;line-height:1.5}
+#comboPanel .combo-meta{margin-top:10px;color:#a8adba;font-size:10px}
+#comboPanel .combo-empty{color:#a8adba;line-height:1.5;font-size:12px}
+#comboPanel .combo-empty b{color:#fff}
+#comboPanel .combo-toolbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+@media(max-width:700px){
+  #comboPanel{padding:10px}
+  #comboPanel .combo-grid{grid-template-columns:1fr}
+}
+
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="eyebrow">Atelier de deckbuilding</div>
+  <h1>Diagnostic <em>Commander</em></h1>
+  <p>Collez votre liste, indiquez votre/vos commandant(s), et l'outil interroge Scryfall pour disséquer la courbe de mana, la base de mana, les catégories fonctionnelles (rampe, pioche, interaction…) et la légalité de couleur — comme on étale ses cartes sur la table pour les compter une à une.</p>
+</header>
+
+<div class="deskcard">
+  <h2>Votre liste</h2>
+  <p class="sub">Une carte par ligne. Les formats "1 Sol Ring", "1x Sol Ring" ou juste "Sol Ring" fonctionnent ; les en-têtes d'export (Moxfield, Archidekt…) et les codes d'édition sont ignorés automatiquement.</p>
+
+  <div class="field-row">
+    <div>
+      <label for="cmdInput">Commandant(s)</label>
+      <input type="text" id="cmdInput" placeholder="ex : Atraxa, Grand Unifier  —  ou en partenaires : Thrasios, Triton Hero, Tymna the Weaver">
+    </div>
+  </div>
+
+  <label for="listInput">Liste principale (99 cartes)</label>
+  <textarea id="listInput" placeholder="1 Sol Ring
+1 Command Tower
+1 Arcane Signet
+1 Swords to Plowshares
+...">
+  </textarea>
+  <p class="hint">
+    Connexion Internet requise. Pour éviter les blocages du navigateur, utilisez de préférence
+    cette page via <code>http://localhost</code> plutôt qu'en <code>file://</code>.
+  </p>
+
+  <div class="actions">
+    <button class="primary" id="analyzeBtn">Analyser le deck</button>
+    <button class="ghost" id="exampleBtn">Charger un exemple</button>
+    <button class="ghost" id="resetBtn">Réinitialiser</button>
+  </div>
+  <p class="status-line" id="statusLine"></p>
+  <p class="hint" style="margin-top:10px;">
+    Conseil : si Scryfall ne répond pas, ouvrez la console du navigateur (F12)
+    pour voir le détail technique de l'erreur.
+  </p>
+</div>
+
+<div id="results">
+
+  <div class="tabbar" id="tabbar" aria-label="Sections des résultats">
+    <div class="tab active" data-tab="overview">Vue d'ensemble
+    <div class="tab active" data-tab="overview">Vue d'ensemble<button class="tab" type="button" data-tab="comboPanel">⚡ Combo</button></div><div id="comboPanel"></div>
+    <div class="tab" data-tab="curve">Courbe de mana</div>
+    <div class="tab" data-tab="types">Types</div>
+    <div class="tab" data-tab="colors">Couleurs</div>
+    <div class="tab" data-tab="categories">Catégories</div>
+    
+    <div class="tab" data-tab="archetype">Combo</div>
+    <div class="tab" data-tab="manabase">Base de mana</div>
+    <div class="tab" data-tab="reco"></div>
+  </div>
+
+  <div class="mobile-tab-hint">← Faites glisser les onglets pour explorer l’analyse →</div>
+  <div class="tabpanel active" id="panel-overview">
+    <div class="panel">
+      <h3>Résumé</h3>
+      <p class="panel-sub" id="overviewSub"></p>
+      <div class="statgrid" id="statgrid"></div>
+      <div id="notfoundBox"></div>
+    </div>
+  </div>
+
+  <div class="tabpanel" id="panel-curve">
+    <div class="panel">
+      <h3>Courbe de mana</h3>
+      <p class="panel-sub">Terrains exclus. Chaque bloc est une carte : vert = créature, laiton = sort non-créature.</p>
+      <div class="curve" id="curveViz"></div>
+      <div class="legend">
+        <span><i style="background:var(--g)"></i>Créatures</span>
+        <span><i style="background:var(--brass)"></i>Autres sorts</span>
+      </div>
+    </div>
+    <div class="panel">
+      <h3>Lecture de la courbe</h3>
+      <div id="curveStats" class="statgrid"></div>
+    </div>
+  </div>
+
+  <div class="tabpanel" id="panel-types">
+    <div class="panel">
+      <h3>Répartition par type</h3>
+      <p class="panel-sub">Chaque carte est comptée dans son type principal.</p>
+      <div class="ledger" id="typesLedger"></div>
+    </div>
+  </div>
+
+  <div class="tabpanel" id="panel-colors">
+    <div class="panel">
+      <h3>Identité de couleur du/des commandant(s)</h3>
+      <div class="pip-row" id="cmdPips"></div>
+    </div>
+    <div class="panel">
+      <h3>Répartition des symboles de couleur</h3>
+      <p class="panel-sub">Comptage par carte colorée (terrains exclus).</p>
+      <div class="ledger" id="colorsLedger"></div>
+    </div>
+    <div class="panel" id="illegalPanel" style="display:none;">
+      <h3>Cartes hors identité de couleur</h3>
+      <p class="panel-sub">Ces cartes ne sont pas légales avec l'identité de couleur du commandant.</p>
+      <div class="cardlist" id="illegalList"></div>
+    </div>
+  </div>
+
+  <div class="tabpanel" id="panel-categories">
+    <div class="panel">
+      <h3>Catégories fonctionnelles</h3>
+      <p class="panel-sub">Détection par mots-clés dans le texte des cartes — indicative, pas exhaustive. Cliquez une catégorie pour voir les cartes détectées.</p>
+      <div id="categoriesList"></div>
+    </div>
+  </div>
+
+  <div class="tabpanel" id="panel-roles">
+    <div class="panel">
+      <h3>Analyse stratégique des cartes</h3>
+      <p class="panel-sub">Une carte peut remplir plusieurs fonctions. Les rôles sont déduits du texte Oracle.</p>
+      <div class="statgrid" id="roleStats"></div>
+    </div>
+    <div class="panel">
+      <h3>Répartition des rôles</h3>
+      <div class="role-grid" id="roleGrid"></div>
+    </div>
+    <div class="panel">
+      <h3>Cartes polyvalentes</h3>
+      <p class="panel-sub">Cartes détectées comme remplissant plusieurs fonctions utiles.</p>
+      <div class="cardlist" id="versatileList"></div>
+    </div>
+  </div>
+
+  <div class="tabpanel" id="panel-archetype">
+    <div class="panel">
+      <h3>Profil du deck</h3>
+      <p class="panel-sub">Détection heuristique des grands axes de construction. Ce profil indique des tendances, pas une classification officielle.</p>
+      <div class="archetype-hero" id="archetypeHero"></div>
+      <div class="statgrid" id="archetypeStats"></div>
+    </div>
+
+    <div class="panel">
+      <h3>Forces thématiques</h3>
+      <div class="theme-list" id="themeList"></div>
+    </div>
+
+    <div class="panel">
+      <h3>Est-ce que le deck est cohérent ?</h3>
+      <p class="panel-sub">Un score simple pour voir si les cartes vont globalement dans la même direction.</p>
+      <div class="coherence-box" id="coherenceBox"></div>
+    </div>
+
+    <div class="panel">
+      <h3>Points forts</h3>
+      <p class="panel-sub">Ce que le deck semble déjà bien faire.</p>
+      <div id="strengthsList"></div>
+    </div>
+
+    <div class="panel">
+      <h3>Points faibles</h3>
+      <p class="panel-sub">Les points qui pourraient limiter le deck.</p>
+      <div id="weaknessesList"></div>
+    </div>
+
+    <div class="panel">
+      <h3>Guide pour améliorer le deck</h3>
+      <p class="panel-sub">Les changements à regarder en premier, puis les améliorations secondaires.</p>
+      <div id="improvementGuide"></div>
+    </div>
+
+    <div class="panel">
+      <h3>Diagnostic stratégique</h3>
+      <div id="strategicDiagnosis"></div>
+    </div>
+  </div>
+
+  <div class="tabpanel" id="panel-manabase">
+    <div class="panel">
+      <h3>Base de mana</h3>
+      <div class="statgrid" id="manabaseStats"></div>
+    </div>
+    <div class="panel">
+      <h3>Terrains de base</h3>
+      <div class="ledger" id="basicsLedger"></div>
+    </div>
+    <div class="panel">
+      <h3>Terrains non-basiques (<span id="nonbasicCount">0</span>)</h3>
+      <div class="cardlist" id="nonbasicList"></div>
+    </div>
+  </div>
+
+  <div class="tabpanel" id="panel-reco">
+    <div class="panel">
+      <h3>Recommandations</h3>
+      <p class="panel-sub">Repères communément admis en Commander — à pondérer selon votre méta et le niveau de puissance visé.</p>
+      <div id="recoList"></div>
+    </div>
+    <div class="panel">
+      <h3>Indicateurs de puissance (informatifs)</h3>
+      <p class="panel-sub">Décompte de signaux souvent associés à un niveau de puissance élevé. Ce n'est pas un score officiel.</p>
+      <div class="statgrid" id="powerStats"></div>
+    </div>
+  </div>
+
+</div>
+
+</div>
+
+<footer>
+  Données de cartes fournies par l'API publique de Scryfall. Les catégories fonctionnelles et indicateurs de puissance reposent sur une détection par mots-clés dans le texte Oracle : vérifiez toujours à l'œil les cas limites (double-face, textes complexes, capacités déclenchées inhabituelles).
+</footer>
+
+<script>
+(function(){
+  const listInput = document.getElementById('listInput');
+  const cmdInput = document.getElementById('cmdInput');
+  const analyzeBtn = document.getElementById('analyzeBtn');
+  const exampleBtn = document.getElementById('exampleBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const statusLine = document.getElementById('statusLine');
+  const results = document.getElementById('results');
+
+  const EXAMPLE_CMD = "Korvold, Fae-Cursed King";
+  const EXAMPLE_LIST = `1 Sol Ring
+1 Arcane Signet
+1 Command Tower
+1 Fellwar Stone
+1 Smothering Tithe
+1 Dockside Extortionist
+1 Rampant Growth
+1 Cultivate
+1 Bone Shards
+1 Swords to Plowshares
+1 Chaos Warp
+1 Vandalblast
+1 Toxic Deluge
+1 Blasphemous Act
+1 Counterspell
+1 Ravenous Chupacabra
+1 Eternal Witness
+1 Demonic Tutor
+1 Vampiric Tutor
+1 Mausoleum Turnkey
+1 Reanimate
+1 Animate Dead
+1 Grave Pact
+1 Dictate of Erebos
+1 Sire of Insanity
+1 Vault of the Archangel
+1 Mountain
+1 Mountain
+1 Mountain
+1 Swamp
+1 Swamp
+1 Swamp
+1 Forest
+1 Forest
+1 Forest
+1 Blood Crypt
+1 Overgrown Tomb
+1 Stomping Ground`;
+
+  exampleBtn.addEventListener('click', () => {
+    cmdInput.value = EXAMPLE_CMD;
+    listInput.value = EXAMPLE_LIST;
+  });
+  resetBtn.addEventListener('click', () => {
+    cmdInput.value = '';
+    listInput.value = '';
+    results.style.display = 'none';
+    setStatus('');
+  });
+
+  function setStatus(msg, isErr){
+    statusLine.textContent = msg || '';
+    statusLine.classList.toggle('err', !!isErr);
+  }
+
+  // ---------- Parsing ----------
+  function parseLine(raw){
+    let line = raw.trim();
+    if (!line) return null;
+    if (/^(deck|decklist|commander|commanders|sideboard|maybeboard|maybe|companion|mainboard|main|library)\s*:?\s*$/i.test(line)) return null;
+    if (/^(#|\/\/)/.test(line)) return null;
+
+    let qty = 1, name = line;
+    let m = line.match(/^(\d+)\s*x?\s+(.+)$/i);
+    if (m) { qty = parseInt(m[1],10); name = m[2]; }
+    else {
+      let m2 = line.match(/^(.+?)\s+x\s*(\d+)$/i);
+      if (m2) { name = m2[1]; qty = parseInt(m2[2],10); }
+    }
+    name = name.replace(/\s*[\(\[][A-Za-z0-9]{2,6}[\)\]]\s*[\w★#]*\s*$/,'').trim();
+    name = name.replace(/\s*\*(F|FOIL|CMDR|ETB)\*\s*$/i,'').trim();
+    if (!name) return null;
+    name = normalizeDoubleFaceDisplay(name);
+    return {qty: qty>0?qty:1, name};
+  }
+
+  function parseDeckText(text){
+    const map = new Map(); // lowercase -> {name, qty}
+    text.split('\n').forEach(line => {
+      const p = parseLine(line);
+      if (!p) return;
+      const key = p.name.toLowerCase();
+      if (map.has(key)) map.get(key).qty += p.qty;
+      else map.set(key, {name: p.name, qty: p.qty});
+    });
+    return Array.from(map.values());
+  }
+
+  function parseCommanders(text){
+    return text.split(',').map(s=>s.trim()).filter(Boolean);
+  }
+
+  // ---------- Scryfall ----------
+  // Cette version fournit des erreurs détaillées et utilise une requête
+  // POST classique. Elle fonctionne depuis une page servie en HTTP(S).
+
+  // ---------- Card name normalization ----------
+  function normalizeCardName(name){
+    return String(name || '')
+      .replace(/\[[^\]]*\]/g, ' ')
+      .replace(/\([^)]*\)/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .replace(/[’‘`]/g, "'")
+      .toLowerCase();
+  }
+
+
+  function splitFaceName(name){
+    return String(name||'').split(/\s*\/\/\s*/).map(s=>s.trim()).filter(Boolean);
+  }
+
+  function normalizeDoubleFaceDisplay(name){
+    return splitFaceName(name).join('//');
+  }
+
+  function isDoubleFacedInput(name){
+    return splitFaceName(name).length >= 2;
+  }
+
+  function cardAllNames(card){
+    const names = [card?.name || ''];
+    if(Array.isArray(card?.card_faces)){
+      card.card_faces.forEach(face=>{
+        if(face?.name) names.push(face.name);
+      });
+    }
+    return names.filter(Boolean);
+  }
+
+  function cardMatchesInput(card, input){
+    const targets=splitFaceName(input).map(normalizeCardName);
+    const names=cardAllNames(card).map(normalizeCardName);
+    return targets.some(target=>names.includes(target));
+  }
+
+  async function scryfallNamed(name, mode){
+    const url = 'https://api.scryfall.com/cards/named?' +
+      mode + '=' + encodeURIComponent(name);
+    try{
+      const r = await fetch(url, {headers:{'Accept':'application/json'}});
+      return r.ok ? await r.json() : null;
+    }catch(e){
+      return null;
+    }
+  }
+
+  async function scryfallSearch(name){
+    try{
+      const url = 'https://api.scryfall.com/cards/search?q=' +
+        encodeURIComponent(name);
+      const r = await fetch(url, {headers:{'Accept':'application/json'}});
+      if(!r.ok) return [];
+      const data = await r.json();
+      return data.data || [];
+    }catch(e){
+      return [];
+    }
+  }
+
+  async function fetchCollection(names){
+    const byLower=new Map(), notFound=[], recovered=[];
+
+
+    async function recover(name){
+      const original=String(name||'').trim();
+      const faces=splitFaceName(original);
+      const doubleFaced=faces.length>=2;
+
+      // MDFC / transform: Scryfall is more reliable when each face is
+      // searched independently. The returned object is still the single
+      // physical double-faced card.
+      const variants=doubleFaced
+        ? [...new Set([original,...faces])]
+        : [original,normalizeCardName(original)];
+
+      for(const variant of variants){
+        let card=await scryfallNamed(variant,'exact');
+        if(!card) card=await scryfallNamed(variant,'fuzzy');
+
+        if(card){
+          byLower.set(card.name.toLowerCase(),card);
+          recovered.push({
+            input:original,
+            matched:card.name,
+            doubleFaced:doubleFaced
+          });
+          return;
+        }
+      }
+
+      // Search each face separately. Do not require the combined "A // B"
+      // string to match because Scryfall may return the canonical card name
+      // or a card_faces representation instead.
+      for(const face of (doubleFaced ? faces : [original])){
+        const candidates=await scryfallSearch(face);
+        let card=candidates.find(c=>cardMatchesInput(c,face));
+        if(!card && candidates.length===1) card=candidates[0];
+
+        if(card){
+          byLower.set(card.name.toLowerCase(),card);
+          recovered.push({
+            input:original,
+            matched:card.name,
+            doubleFaced:doubleFaced
+          });
+          return;
+        }
+      }
+
+      notFound.push(original);
+    }
+    for(let i=0;i<names.length;i+=75){
+      const batch=names.slice(i,i+75);
+      try{
+        const r=await fetch('https://api.scryfall.com/cards/collection',{
+          method:'POST',
+          headers:{'Content-Type':'application/json','Accept':'application/json'},
+          body:JSON.stringify({identifiers:batch.map(n=>({name:n}))})
+        });
+        if(!r.ok) throw new Error('HTTP '+r.status);
+        const data=await r.json();
+        (data.data||[]).forEach(c=>byLower.set(c.name.toLowerCase(),c));
+        for(const x of (data.not_found||[])){
+          if(x?.name) await recover(x.name);
+        }
+      }catch(e){
+        for(const name of batch) await recover(name);
+      }
+      if(i+75<names.length) await new Promise(r=>setTimeout(r,120));
+    }
+    return {byLower,notFound,recovered};
+  }
+
+  // ---------- Card helpers ----------
+  function combinedText(card){
+    if (card.oracle_text) return card.oracle_text;
+    if (card.card_faces) return card.card_faces.map(f=>f.oracle_text||'').join(' // ');
+    return '';
+  }
+  function combinedTypeLine(card){
+    return card.type_line || (card.card_faces ? card.card_faces.map(f=>f.type_line||'').join(' // ') : '');
+  }
+  function isLand(card){ return /land/i.test(combinedTypeLine(card)); }
+  function isBasicLand(card){ return /basic land/i.test(combinedTypeLine(card)); }
+  function mainType(card){
+    const t = combinedTypeLine(card);
+    if (/planeswalker/i.test(t)) return 'Planeswalker';
+    if (/battle/i.test(t)) return 'Bataille';
+    if (/creature/i.test(t)) return 'Créature';
+    if (/land/i.test(t)) return 'Terrain';
+    if (/artifact/i.test(t)) return 'Artefact';
+    if (/enchantment/i.test(t)) return 'Enchantement';
+    if (/instant/i.test(t)) return 'Éphémère';
+    if (/sorcery/i.test(t)) return 'Rituel';
+    return 'Autre';
+  }
+  function isRamp(card){
+    if (isLand(card)) return false;
+    const t = combinedText(card).toLowerCase();
+    return /search your library for a[n]? .*?land|you may (put|play) (a|an additional) land|play an additional land|add \{[a-z0-9]\}|add one mana|add two mana|add three mana|mana of any (one )?color|add \{[a-z0-9]\}\{[a-z0-9]\}/i.test(t);
+  }
+  function isDraw(card){
+    const t = combinedText(card).toLowerCase();
+    return /draw (a|two|three|four|five|\d+|that many) cards?\b/i.test(t) || /draws? a card/i.test(t);
+  }
+  function isTargetedRemoval(card){
+    const t = combinedText(card).toLowerCase();
+    return /destroy target (creature|permanent|artifact|enchantment|planeswalker)|exile target (creature|permanent|artifact|enchantment|planeswalker|player'?s)|target creature gets -\d|deals? \d+ damage to target|return target (creature|permanent|artifact|enchantment|planeswalker) to (its|their) owner('|)s? hand/i.test(t);
+  }
+  function isBoardWipe(card){
+    const t = combinedText(card).toLowerCase();
+    return /destroy all creatures|all creatures get -\d|exile all creatures|destroy all (other )?(creatures|permanents)|each creature (gets|deals its power)|-\d\/-\d to (each|all) creature/i.test(t);
+  }
+  function isCounterspell(card){
+    return /counter target spell/i.test(combinedText(card).toLowerCase());
+  }
+  function isTutor(card){
+    const t = combinedText(card).toLowerCase();
+    if (/search your library for a[n]? .*?land/i.test(t)) return false;
+    return /search your library for/i.test(t);
+  }
+  function isRecursion(card){
+    const t = combinedText(card).toLowerCase();
+    return /return target .*card from your graveyard|from your graveyard to your hand|from your graveyard to the battlefield|from a graveyard to the battlefield/i.test(t);
+  }
+  function isExtraTurn(card){
+    return /extra turn/i.test(combinedText(card).toLowerCase());
+  }
+
+
+  // ---------- Archétypes / synergies ----------
+  function archetypeSignals(card){
+    const t = combinedText(card).toLowerCase();
+    const type = combinedTypeLine(card).toLowerCase();
+    const s = {
+      tokens:0, artifacts:0, sacrifice:0, graveyard:0, spells:0,
+      treasures:0, life:0, counters:0, dice:0, voltron:0,
+      control:0, combo:0, blink:0, mill:0
+    };
+
+    if (/create .*token|tokens you control/i.test(t)) s.tokens += 2;
+    if (/treasure token/i.test(t)) { s.tokens += 1; s.treasures += 3; }
+    if (/artifact/i.test(type) || /artifact you control|artifacts you control/i.test(t)) s.artifacts += 2;
+    if (/sacrifice|dies,|whenever .* dies/i.test(t)) s.sacrifice += 3;
+    if (/graveyard|from your graveyard|cards in graveyards/i.test(t)) s.graveyard += 3;
+    if (/cast .* spell|instant or sorcery|whenever you cast/i.test(t)) s.spells += 2;
+    if (/gain .* life|life total|whenever you gain life/i.test(t)) s.life += 2;
+    if (/counter on|counters on|proliferate/i.test(t)) s.counters += 3;
+    if (/dice roll|roll a d|roll two d|roll three d/i.test(t)) s.dice += 4;
+    if (/equip|aura|enchanted creature|gets \+\d\/\+\d/i.test(t)) s.voltron += 2;
+    if (/counter target|destroy target|exile target|return target .*hand/i.test(t)) s.control += 2;
+    if (/instant|sorcery/i.test(type)) s.control += 1;
+    if (/mill |mills /i.test(t)) s.mill += 3;
+    if (/exile .* return|flicker|blink|exile target .* then return/i.test(t)) s.blink += 3;
+    if (/infinite|you win the game|win the game/i.test(t)) s.combo += 5;
+
+    return s;
+  }
+
+  function deckArchetypeAnalysis(found, commanders){
+    const totals = {};
+    const cards = [];
+    found.forEach(r => {
+      const sig = archetypeSignals(r.card);
+      cards.push({name:r.name, qty:r.qty, sig, card:r.card});
+      Object.entries(sig).forEach(([k,v]) => totals[k]=(totals[k]||0)+v*r.qty);
+    });
+
+    const labels = {
+      tokens:'Tokens', artifacts:'Artefacts', sacrifice:'Aristocrats / Sacrifice',
+      graveyard:'Cimetière', spells:'Spellslinger', treasures:'Trésors',
+      life:'Gain de vie', counters:'Marqueurs', dice:'Jets de dés',
+      voltron:'Voltron / Auras', control:'Contrôle', combo:'Combo',
+      blink:'Blink / ETB', mill:'Meule'
+    };
+
+    const ranked = Object.entries(totals)
+      .filter(([,v])=>v>0)
+      .sort((a,b)=>b[1]-a[1]);
+
+    const primary = ranked[0]?.[0] || null;
+    const secondary = ranked[1]?.[0] || null;
+
+    // Estimate synergy: repeated themes + cards supporting the strongest themes.
+    const topThemes = ranked.slice(0,4).map(x=>x[0]);
+    let synergyHits = 0;
+    cards.forEach(c => {
+      const hits = topThemes.filter(k => c.sig[k] >= 2).length;
+      if (hits >= 2) synergyHits += c.qty;
+    });
+
+    return {totals, labels, ranked, primary, secondary, synergyHits, cards};
+  }
+
+  // Analyse stratégique avancée, basée sur le texte Oracle Scryfall.
+  function cardRoles(card){
+    const t = combinedText(card).toLowerCase();
+    const type = combinedTypeLine(card).toLowerCase();
+    const roles = [];
+    if (isLand(card)) roles.push('Terrain');
+    if (/creature/i.test(type)) roles.push('Créature');
+    if (/artifact/i.test(type)) roles.push('Artefact');
+    if (/enchantment/i.test(type)) roles.push('Enchantement');
+    if (/planeswalker/i.test(type)) roles.push('Planeswalker');
+    if (isRamp(card)) roles.push('Rampe');
+    if (isDraw(card)) roles.push('Pioche');
+    if (isTutor(card)) roles.push('Tuteur');
+    if (isTargetedRemoval(card)) roles.push('Removal');
+    if (isBoardWipe(card)) roles.push('Wrath');
+    if (isCounterspell(card)) roles.push('Contresort');
+    if (isRecursion(card)) roles.push('Récursion');
+    if (/create .*token/i.test(t)) roles.push('Tokens');
+    if (/treasure token/i.test(t)) roles.push('Trésors');
+    if (/clue token/i.test(t)) roles.push('Indices');
+    if (/food token/i.test(t)) roles.push('Nourriture');
+    if (/dice roll|roll a d|roll two d|roll three d/i.test(t)) roles.push('Jets de dés');
+    if (/sacrifice (a|another|this|one|target)/i.test(t)) roles.push('Sacrifice');
+    if (/when .* dies|whenever .* dies|dies, /i.test(t)) roles.push('Aristocrats');
+    if (/enters the battlefield/i.test(t)) roles.push('ETB');
+    if (/counter on|counters on|proliferate/i.test(t)) roles.push('Marqueurs');
+    if (/gain .* life|gain life|life total|pay .* life/i.test(t)) roles.push('Vie');
+    if (/discard|discards/i.test(t)) roles.push('Défausse');
+    if (/mill /i.test(t)) roles.push('Meule');
+    if (/copy .*spell|copies of|copy it/i.test(t)) roles.push('Copie');
+    if (/hexproof|indestructible|protection from|ward \{/i.test(t)) roles.push('Protection');
+    if (/flash/i.test(t)) roles.push('Flash');
+    if (/commander/i.test(t)) roles.push('Synergie Commandant');
+    if (/artifact token|artifact tokens|artifact you control/i.test(t)) roles.push('Synergie Artefacts');
+    if (/extra turn/i.test(t)) roles.push('Tour supplémentaire');
+    if (/win the game|you win the game/i.test(t)) roles.push('Condition de victoire');
+    return [...new Set(roles)];
+  }
+
+  function roleScore(roles, text){
+    let s = roles.length;
+    s += roles.filter(r => ['Rampe','Pioche','Tuteur','Removal','Wrath','Contresort','Récursion'].includes(r)).length;
+    if (roles.includes('Synergie Commandant')) s += 3;
+    if (roles.includes('Tour supplémentaire')) s += 3;
+    if (/win the game|you win the game/i.test(text)) s += 5;
+    return s;
+  }
+  const FAST_MANA = new Set(['sol ring','mana crypt','mana vault','grim monolith','jeweled lotus','chrome mox','mox diamond','mox opal','lotus petal','black lotus','mox emerald','mox jet','mox pearl','mox ruby','mox sapphire','dark ritual','cabal ritual','culling the weak','ancient tomb','city of traitors']);
+
+  const COLOR_NAMES = {W:'Blanc', U:'Bleu', B:'Noir', R:'Rouge', G:'Vert', C:'Incolore'};
+  const COLOR_HEX = {W:'var(--w)', U:'var(--u)', B:'var(--b)', R:'var(--r)', G:'var(--g)', C:'var(--c)'};
+
+  // ---------- Tabs ----------
+  document.getElementById('tabbar').addEventListener('click', (e) => {
+    const tab = e.target.closest('.tab');
+    if (!tab) return;
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.tabpanel').forEach(p=>p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('panel-' + tab.dataset.tab).classList.add('active');
+  });
+
+  // ---------- Main ----------
+  analyzeBtn.addEventListener('click', async () => {
+    const rawList = listInput.value;
+    const entries = parseDeckText(rawList);
+    const commanderNames = parseCommanders(cmdInput.value);
+
+    if (entries.length === 0 && commanderNames.length === 0){
+      setStatus("Collez d'abord une liste de deck (et idéalement un commandant).", true);
+      return;
+    }
+
+    analyzeBtn.disabled = true;
+    setStatus('Connexion à Scryfall et récupération des cartes…');
+
+    try{
+      const allNames = Array.from(new Set([
+        ...entries.map(e=>e.name),
+        ...commanderNames
+      ]));
+      const {byLower, notFound, recovered} = await fetchCollection(allNames);
+
+      const resolved = entries.map(e => {
+        let card=byLower.get(e.name.toLowerCase())||null;
+        const normalized=normalizeCardName(e.name);
+        if(!card){
+          for(const [key,val] of byLower){
+            const faces=splitFaceName(e.name);
+            if(normalizeCardName(key)===normalized || cardMatchesInput(val,e.name) ||
+               faces.some(f=>cardMatchesInput(val,f))){ card=val; break; }
+          }
+        }
+        const hit=recovered.find(x=>normalizeCardName(x.input)===normalized);
+        if(!card && hit) card=byLower.get(hit.matched.toLowerCase())||null;
+        return {name:e.name,qty:e.qty,card};
+      });
+      const commanders = commanderNames.map(n => {
+        let card=byLower.get(n.toLowerCase())||null;
+        const normalized=normalizeCardName(n);
+        if(!card){
+          for(const [key,val] of byLower){
+            const faces=splitFaceName(n);
+            if(normalizeCardName(key)===normalized || cardMatchesInput(val,n) ||
+               faces.some(f=>cardMatchesInput(val,f))){ card=val; break; }
+          }
+        }
+        const hit=recovered.find(x=>normalizeCardName(x.input)===normalized);
+        if(!card && hit) card=byLower.get(hit.matched.toLowerCase())||null;
+        return {name:n,card};
+      }).filter(c=>c.card);
+
+      setStatus('Analyse en cours…');
+      render(resolved, commanders, notFound);
+      const okCount=resolved.filter(r=>r.card).length;
+      const missingCount=resolved.filter(r=>!r.card).length;
+      const missingNames=resolved.filter(r=>!r.card).map(r=>r.name);
+      const doubleFacedRecovered=recovered.filter(x=>x.doubleFaced).length;
+      setStatus(`Analyse terminée — ${okCount}/${entries.length} cartes identifiées`+
+        (recovered.length?` · ${recovered.length} retrouvée(s) automatiquement`:``)+
+        (doubleFacedRecovered?` · ${doubleFacedRecovered} carte(s) avec //`:``)+
+        (missingCount?` · ${missingCount} introuvable(s)`:``)+
+        (missingCount?` — ${missingNames.join(' · ')}`:``)+`.` );
+      results.style.display = 'block';
+      results.scrollIntoView({behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block:'start'});
+    }catch(err){
+      console.error(err);
+      setStatus(err.message || 'Une erreur est survenue.', true);
+    }finally{
+      analyzeBtn.disabled = false;
+    }
+  });
+
+  function render(resolved, commanders, notFound){
+    const found = resolved.filter(r => r.card);
+    const totalDeclared = resolved.reduce((s,r)=>s+r.qty,0);
+    const totalAnalyzed = found.reduce((s,r)=>s+r.qty,0);
+
+    const nonland = found.filter(r => !isLand(r.card));
+    const lands = found.filter(r => isLand(r.card));
+    const nonlandCount = nonland.reduce((s,r)=>s+r.qty,0);
+    const landCount = lands.reduce((s,r)=>s+r.qty,0);
+
+    // commander color identity
+    const cmdIdentity = new Set();
+    commanders.forEach(c => (c.card.color_identity||[]).forEach(col => cmdIdentity.add(col)));
+    const hasCommander = commanders.length > 0;
+
+    const illegal = hasCommander ? found.filter(r => {
+      const ci = r.card.color_identity || [];
+      return !ci.every(col => cmdIdentity.has(col));
+    }) : [];
+
+    const duplicates = resolved.filter(r => r.qty > 1 && !(r.card && isBasicLand(r.card)));
+
+    // avg / median cmc (nonland)
+    let cmcArr = [];
+    nonland.forEach(r => { for(let i=0;i<r.qty;i++) cmcArr.push(r.card.cmc || 0); });
+    cmcArr.sort((a,b)=>a-b);
+    const avgCmc = cmcArr.length ? (cmcArr.reduce((a,b)=>a+b,0)/cmcArr.length) : 0;
+    const medianCmc = cmcArr.length ? cmcArr[Math.floor(cmcArr.length/2)] : 0;
+
+    // ---- Overview tab ----
+    document.getElementById('overviewSub').textContent =
+      `${totalDeclared} cartes déclarées (${totalAnalyzed} identifiées via Scryfall)` +
+      (hasCommander ? ` — commandant : ${commanders.map(c=>c.name).join(' & ')}` : ' — aucun commandant renseigné');
+
+    const statgrid = document.getElementById('statgrid');
+    statgrid.innerHTML = [
+      stat(totalDeclared, 'Cartes déclarées'),
+      stat(landCount, 'Terrains'),
+      stat(nonlandCount, 'Sorts (hors terrains)'),
+      stat(avgCmc.toFixed(2), 'CMV moyenne (hors terrains)'),
+      stat(illegal.length, 'Hors identité couleur'),
+      stat(duplicates.length, 'Doublons (hors basiques)'),
+    ].join('');
+
+    const nf = document.getElementById('notfoundBox');
+    nf.innerHTML = notFound.length
+      ? `<div class="notfound-box"><b>${notFound.length} carte(s) non identifiée(s)</b> — vérifiez l'orthographe : ${notFound.map(n=>escapeHtml(n)).join(', ')}</div>`
+      : '';
+
+    // ---- Curve tab ----
+    renderCurve(nonland);
+    document.getElementById('curveStats').innerHTML = [
+      stat(avgCmc.toFixed(2), 'CMV moyenne'),
+      stat(medianCmc.toFixed(1), 'CMV médiane'),
+      stat(cmcArr.filter(c=>c<=2).length, 'Cartes à CMV ≤ 2'),
+      stat(cmcArr.filter(c=>c>=5).length, 'Cartes à CMV ≥ 5'),
+    ].join('');
+
+    // ---- Types tab ----
+    const typeCounts = {};
+    found.forEach(r => { const t = mainType(r.card); typeCounts[t] = (typeCounts[t]||0) + r.qty; });
+    const typeOrder = ['Créature','Terrain','Artefact','Enchantement','Éphémère','Rituel','Planeswalker','Bataille','Autre'];
+    const maxType = Math.max(1, ...Object.values(typeCounts));
+    document.getElementById('typesLedger').innerHTML = typeOrder
+      .filter(t => typeCounts[t])
+      .map(t => ledgerRow(t, typeCounts[t], maxType))
+      .join('');
+
+    // ---- Colors tab ----
+    const cmdPips = document.getElementById('cmdPips');
+    cmdPips.innerHTML = hasCommander
+      ? (['W','U','B','R','G'].filter(c=>cmdIdentity.has(c)).map(c=>pip(c)).join('') || pip('C'))
+      : '<span style="color:var(--bone-dim); font-size:13px;">Aucun commandant renseigné — la vérification de légalité de couleur est désactivée.</span>';
+
+    const colorCounts = {W:0,U:0,B:0,R:0,G:0,C:0};
+    nonland.forEach(r => {
+      const colors = r.card.colors || [];
+      if (colors.length === 0) colorCounts.C += r.qty;
+      else colors.forEach(c => { colorCounts[c] = (colorCounts[c]||0) + r.qty; });
+    });
+    const maxColor = Math.max(1, ...Object.values(colorCounts));
+    document.getElementById('colorsLedger').innerHTML = ['W','U','B','R','G','C']
+      .filter(c => colorCounts[c] > 0)
+      .map(c => ledgerRow(COLOR_NAMES[c], colorCounts[c], maxColor, COLOR_HEX[c]))
+      .join('');
+
+    const illegalPanel = document.getElementById('illegalPanel');
+    if (hasCommander && illegal.length){
+      illegalPanel.style.display = 'block';
+      document.getElementById('illegalList').innerHTML = illegal
+        .map(r => `<span><b>${escapeHtml(r.name)}</b> — ${ (r.card.color_identity||[]).join('') || 'C' }</span>`)
+        .join('');
+    } else {
+      illegalPanel.style.display = 'none';
+    }
+
+    // ---- Categories tab ----
+    const categories = [
+      {key:'ramp', label:'Rampe', desc:'Accélération de mana', test:isRamp},
+      {key:'draw', label:'Pioche', desc:'Avantage de cartes', test:isDraw},
+      {key:'removal', label:'Suppression ciblée', desc:'Destruction / exil / bounce ciblés', test:isTargetedRemoval},
+      {key:'wipe', label:'Balayages', desc:'Interaction de masse', test:isBoardWipe},
+      {key:'counter', label:'Contresorts', desc:'Contrent un sort ciblé', test:isCounterspell},
+      {key:'tutor', label:'Tuteurs', desc:'Cherchent une carte précise', test:isTutor},
+      {key:'recursion', label:'Récursion', desc:'Récupèrent depuis le cimetière', test:isRecursion},
+    ];
+    const catResults = categories.map(cat => {
+      const cards = found.filter(r => cat.test(r.card));
+      const count = cards.reduce((s,r)=>s+r.qty,0);
+      return {...cat, cards, count};
+    });
+    document.getElementById('categoriesList').innerHTML = catResults.map(cat => `
+      <details class="cat">
+        <summary>
+          <span class="catname"><span class="caret">▸</span> ${cat.label} <span class="desc">— ${cat.desc}</span></span>
+          <span class="cat-count">${cat.count}</span>
+        </summary>
+        <div class="cardlist">
+          ${cat.cards.map(r => `<span>${r.qty>1?`${r.qty}× `:''}${escapeHtml(r.name)}</span>`).join('') || '<span>Aucune carte détectée</span>'}
+        </div>
+      </details>
+    `).join('');
+
+    // ---- Analyse stratégique avancée ----
+    const roleCounts = {};
+    const profiles = found.map(r => {
+      const roles = cardRoles(r.card);
+      roles.forEach(role => roleCounts[role] = (roleCounts[role] || 0) + r.qty);
+      return { ...r, roles, score: roleScore(roles, combinedText(r.card)) };
+    });
+
+    const strategicRoles = [
+      'Rampe','Pioche','Tuteur','Removal','Wrath','Contresort','Récursion',
+      'Tokens','Trésors','Sacrifice','Aristocrats','ETB','Marqueurs','Vie',
+      'Défausse','Meule','Protection','Synergie Commandant','Synergie Artefacts',
+      'Jets de dés','Tour supplémentaire','Condition de victoire'
+    ];
+
+    const roleHits = strategicRoles.reduce((n,r)=>n+(roleCounts[r]||0),0);
+    const versatile = profiles.filter(r=>r.roles.length>=3)
+      .sort((a,b)=>b.score-a.score || b.roles.length-a.roles.length);
+
+    document.getElementById('roleStats').innerHTML = [
+      stat(roleHits, 'Fonctions détectées'),
+      stat(Object.keys(roleCounts).length, 'Rôles présents'),
+      stat(versatile.reduce((n,r)=>n+r.qty,0), 'Cartes polyvalentes'),
+      stat((roleHits/Math.max(1,totalAnalyzed)).toFixed(1), 'Fonctions / carte')
+    ].join('');
+
+    const maxRole = Math.max(1,...strategicRoles.map(r=>roleCounts[r]||0));
+    document.getElementById('roleGrid').innerHTML = strategicRoles
+      .filter(r=>roleCounts[r])
+      .sort((a,b)=>(roleCounts[b]||0)-(roleCounts[a]||0))
+      .map(r=>`<div class="role-card">
+        <div class="role-title">${escapeHtml(r)}</div>
+        <div class="role-bar"><span style="width:${Math.max(5,Math.round(roleCounts[r]/maxRole*100))}%"></span></div>
+        <div class="role-count">${roleCounts[r]}</div>
+      </div>`).join('');
+
+    document.getElementById('versatileList').innerHTML =
+      versatile.slice(0,30).map(r=>`<span><b>${escapeHtml(r.name)}</b> — ${escapeHtml(r.roles.join(' · '))}</span>`).join('')
+      || '<span>Aucune carte polyvalente détectée.</span>';
+
+
+    // ---- Profil archétype & synergies ----
+    const archetype = deckArchetypeAnalysis(found, commanders);
+    const primaryLabel = archetype.primary ? archetype.labels[archetype.primary] : 'Indéterminé';
+    const secondaryLabel = archetype.secondary ? archetype.labels[archetype.secondary] : 'Axe secondaire non détecté';
+
+    document.getElementById('archetypeHero').innerHTML =
+      `<div class="archetype-main"><span class="archetype-kicker">AXE DOMINANT</span><strong>${escapeHtml(primaryLabel)}</strong><span class="archetype-secondary">+ ${escapeHtml(secondaryLabel)}</span></div>`;
+
+    const totalThemeScore = Object.values(archetype.totals).reduce((a,b)=>a+b,0);
+    const concentration = totalThemeScore ? Math.round((archetype.totals[archetype.primary]||0)/totalThemeScore*100) : 0;
+    document.getElementById('archetypeStats').innerHTML = [
+      stat(concentration+'%', 'Plan principal'),
+      stat(archetype.synergyHits, 'Cartes qui se complètent'),
+      stat(archetype.ranked.length, 'Plans détectés'),
+      stat((archetype.synergyHits/Math.max(1,totalAnalyzed)*100).toFixed(0)+'%', 'Cartes utiles au plan')
+    ].join('');
+
+    const maxTheme = Math.max(1,...archetype.ranked.map(([,v])=>v));
+    document.getElementById('themeList').innerHTML = archetype.ranked.slice(0,10).map(([key,value],i) => `
+      <div class="theme-row">
+        <div class="theme-name"><span class="theme-rank">${i+1}</span>${escapeHtml(archetype.labels[key])}</div>
+        <div class="theme-bar"><span style="width:${Math.max(5,Math.round(value/maxTheme*100))}%"></span></div>
+        <div class="theme-value">${value}</div>
+      </div>`).join('') || '<p style="color:var(--bone-dim)">Pas assez de signaux pour déterminer un thème.</p>';
+
+
+    const interactionCountForGuide =
+      catResults.find(c=>c.key==='removal').count +
+      catResults.find(c=>c.key==='wipe').count +
+      catResults.find(c=>c.key==='counter').count;
+    const interactionCountLegacy =
+      catResults.find(c=>c.key==='removal').count +
+      catResults.find(c=>c.key==='wipe').count;
+    const rampCount = catResults.find(c=>c.key==='ramp').count;
+    const drawCount = catResults.find(c=>c.key==='draw').count;
+
+    // ---- Points forts / points faibles / guide d'amélioration ----
+    const strengths = [];
+    const weaknesses = [];
+    const improvements = [];
+
+    const landRatio = landCount / Math.max(1,totalAnalyzed);
+    const avgRolePerCard = roleHits / Math.max(1,totalAnalyzed);
+    const rampCount2 = catResults.find(c=>c.key==='ramp').count;
+    const drawCount2 = catResults.find(c=>c.key==='draw').count;
+    const tutorCount2 = catResults.find(c=>c.key==='tutor').count;
+    const interactionCount2 = catResults.find(c=>c.key==='removal').count + catResults.find(c=>c.key==='wipe').count;
+    const counterCount2 = catResults.find(c=>c.key==='counter').count;
+    const recursionCount2 = catResults.find(c=>c.key==='recursion').count;
+    const cheapCards = cmcArr.filter(c=>c<=2).length;
+
+    if (rampCount2 >= 8) strengths.push('Le deck accélère correctement son mana.');
+    if (drawCount2 >= 8) strengths.push('Le deck possède une bonne capacité à trouver de nouvelles cartes.');
+    if (interactionCountForGuide >= 8) strengths.push('Le deck peut répondre aux menaces adverses.');
+    if (tutorCount2 >= 3) strengths.push('Le deck a plusieurs moyens de trouver ses cartes importantes.');
+    if (recursionCount2 >= 4) strengths.push('Le deck peut récupérer des ressources depuis le cimetière.');
+    if (archetype.synergyHits >= 10) strengths.push('Beaucoup de cartes se complètent entre elles.');
+    if (concentration >= 35) strengths.push(`Le plan principal « ${primaryLabel} » est clairement identifiable.`);
+    if (cheapCards >= Math.max(15, Math.round(nonlandCount*0.35))) strengths.push('La courbe contient suffisamment de cartes peu coûteuses pour démarrer rapidement.');
+    if (landCount >= 36 && landCount <= 38) strengths.push('Le nombre de terrains est dans une zone confortable.');
+
+    if (landCount < 33) weaknesses.push('Il manque probablement des terrains pour jouer régulièrement.');
+    if (rampCount2 < 8) weaknesses.push('Le deck manque de sources d’accélération de mana.');
+    if (drawCount2 < 8) weaknesses.push('Le deck risque de manquer de cartes en milieu ou fin de partie.');
+    if (interactionCountForGuide < 8) weaknesses.push('Le deck a peu de réponses aux menaces adverses.');
+    if (concentration < 22) weaknesses.push('Les cartes semblent partir dans plusieurs directions.');
+    if (archetype.synergyHits < 5 && totalAnalyzed >= 60) weaknesses.push('Peu de cartes semblent réellement travailler ensemble.');
+    if (avgCmc > 3.3) weaknesses.push(`La courbe de mana est assez haute (${avgCmc.toFixed(2)} en moyenne).`);
+    if (tutorCount2 >= 5 && drawCount2 < 6) weaknesses.push('Le deck cherche bien ses cartes, mais possède peu de pioche régulière.');
+    if (archetype.primary === 'voltron' && (roleCounts['Protection']||0) < 3) weaknesses.push('Le plan Voltron semble manquer de protection.');
+    if ((archetype.primary === 'tokens' || archetype.primary === 'treasures') && (roleCounts['Sacrifice']||0) < 3 && (roleCounts['Marqueurs']||0) < 3)
+      weaknesses.push('Le deck produit des tokens mais semble manquer de moyens pour bien les utiliser.');
+
+    // Build a prioritized improvement guide.
+    if (landCount < 36) improvements.push({
+      level:'Priorité 1', title:'Sécuriser le mana',
+      text:`Ajouter environ ${Math.max(1,36-landCount)} terrain(s) ou compenser avec de la rampe fiable.`
+    });
+    if (rampCount2 < 8) improvements.push({
+      level:'Priorité 1', title:'Ajouter de la rampe',
+      text:`Viser environ ${Math.max(1,8-rampCount2)} source(s) supplémentaire(s) d’accélération.`
+    });
+    if (drawCount2 < 8) improvements.push({
+      level:'Priorité 1', title:'Ajouter de la pioche',
+      text:`Viser environ ${Math.max(1,8-drawCount2)} source(s) supplémentaire(s) de pioche ou d’avantage de cartes.`
+    });
+    if (interactionCountForGuide < 8) improvements.push({
+      level:'Priorité 1', title:'Renforcer les réponses',
+      text:`Ajouter environ ${Math.max(1,8-interactionCountForGuide)} réponse(s) pour gérer les menaces.`
+    });
+    if (concentration < 30) improvements.push({
+      level:'Priorité 2', title:'Resserer le plan',
+      text:'Retirer les cartes qui ne servent pas le plan principal et renforcer les cartes qui créent plusieurs synergies.'
+    });
+    if (archetype.synergyHits < 8) improvements.push({
+      level:'Priorité 2', title:'Augmenter les synergies',
+      text:'Chercher des cartes qui remplissent plusieurs fonctions à la fois plutôt que des cartes trop spécialisées.'
+    });
+    if (avgCmc > 3.3) improvements.push({
+      level:'Priorité 2', title:'Alléger la courbe',
+      text:'Remplacer quelques cartes coûteuses par des cartes moins chères qui font un travail similaire.'
+    });
+    if (tutorCount2 >= 5 && drawCount2 < 6) improvements.push({
+      level:'Priorité 2', title:'Mieux exploiter les tuteurs',
+      text:'Ajouter de la pioche régulière pour ne pas dépendre uniquement des cartes recherchées.'
+    });
+    if (archetype.primary === 'tokens' || archetype.primary === 'treasures') improvements.push({
+      level:'Priorité 3', title:'Mieux utiliser les tokens',
+      text:'Ajouter des cartes qui transforment les tokens en mana, cartes, dégâts ou progression vers la victoire.'
+    });
+    if (archetype.primary === 'graveyard') improvements.push({
+      level:'Priorité 3', title:'Renforcer le cimetière',
+      text:'Ajouter des cartes qui remplissent le cimetière et des cartes qui récupèrent les ressources importantes.'
+    });
+
+    if (!strengths.length) strengths.push('Aucun point fort évident n’a été détecté automatiquement.');
+    if (!weaknesses.length) weaknesses.push('Aucun gros point faible n’a été détecté avec les critères actuels.');
+
+    document.getElementById('strengthsList').innerHTML = strengths.slice(0,8)
+      .map(s=>`<div class="guide-item good"><span>✓</span><p>${escapeHtml(s)}</p></div>`).join('');
+
+    document.getElementById('weaknessesList').innerHTML = weaknesses.slice(0,8)
+      .map(s=>`<div class="guide-item bad"><span>!</span><p>${escapeHtml(s)}</p></div>`).join('');
+
+    document.getElementById('improvementGuide').innerHTML = improvements.slice(0,8)
+      .map((x,i)=>`<div class="improvement-step">
+        <div class="step-number">${i+1}</div>
+        <div><b>${escapeHtml(x.level)} · ${escapeHtml(x.title)}</b><p>${escapeHtml(x.text)}</p></div>
+      </div>`).join('') || '<p style="color:var(--bone-dim)">Le deck est déjà équilibré selon les critères actuels.</p>';
+
+
+    const diagnosis = [];
+    if (concentration >= 35) {
+      diagnosis.push(reco('ok', `<b>Plan de jeu identifiable :</b> ${escapeHtml(primaryLabel)} ressort nettement comme axe principal.`));
+    } else if (concentration >= 22) {
+      diagnosis.push(reco('info', `<b>Plan de jeu mixte :</b> ${escapeHtml(primaryLabel)} domine légèrement, avec plusieurs axes concurrents.`));
+    } else {
+      diagnosis.push(reco('info', `<b>Identité diffuse :</b> aucun archétype ne domine clairement. Cela peut être volontaire, mais certaines cartes risquent d'être moins synergétiques.`));
+    }
+
+    const coherenceBase = Math.min(100,
+      Math.round(
+        concentration * 0.45 +
+        Math.min(100, archetype.synergyHits / Math.max(1,totalAnalyzed) * 100) * 0.35 +
+        Math.min(100, (roleHits / Math.max(1,totalAnalyzed)) * 12) * 0.20
+      )
+    );
+
+    let coherenceLabel = 'À améliorer';
+    let coherenceText = 'Le deck part dans plusieurs directions. Quelques cartes pourraient être remplacées pour mieux suivre le plan principal.';
+    if (coherenceBase >= 80) {
+      coherenceLabel = 'Très cohérent';
+      coherenceText = 'La plupart des cartes semblent bien suivre le plan principal du deck.';
+    } else if (coherenceBase >= 65) {
+      coherenceLabel = 'Cohérent';
+      coherenceText = 'Le plan du deck est assez clair et la majorité des cartes y participent.';
+    } else if (coherenceBase >= 50) {
+      coherenceLabel = 'Moyennement cohérent';
+      coherenceText = 'Le plan est présent, mais certaines cartes semblent moins utiles ou moins liées au reste.';
+    }
+
+    document.getElementById('coherenceBox').innerHTML =
+      `<div class="coherence-score">${coherenceBase}<span>/100</span></div>
+       <div class="coherence-label">${coherenceLabel}</div>
+       <p>${coherenceText}</p>`;
+
+    if (archetype.synergyHits >= 10) {
+      diagnosis.push(reco('ok', `<b>Bonne synergie :</b> beaucoup de cartes se complètent entre elles.`));
+    } else if (archetype.synergyHits < 5 && totalAnalyzed >= 60) {
+      diagnosis.push(reco('warn', `<b>Synergie à améliorer :</b> peu de cartes semblent travailler ensemble.`));
+    }
+
+    if ((archetype.primary === 'tokens' || archetype.primary === 'treasures') && (roleCounts['Sacrifice']||0) < 3) {
+      diagnosis.push(reco('info', `<b>Conversion des tokens :</b> beaucoup de production détectée, mais peu de sacrifices ou de convertisseurs explicites.`));
+    }
+    if (archetype.primary === 'spells' && (drawCount < 8 || interactionCountLegacy < 8)) {
+      diagnosis.push(reco('info', `<b>Spellslinger :</b> le plan est détecté, mais pioche/interactions pourraient limiter sa régularité.`));
+    }
+    if (archetype.primary === 'graveyard' && (roleCounts['Récursion']||0) < 3) {
+      diagnosis.push(reco('info', `<b>Cimetière :</b> le thème est présent, mais la récursion détectée est relativement faible.`));
+    }
+    if (archetype.primary === 'voltron' && (roleCounts['Protection']||0) < 3) {
+      diagnosis.push(reco('warn', `<b>Voltron :</b> peu de protection détectée pour sécuriser la menace principale.`));
+    }
+    if (archetype.primary === 'control' && interactionCountLegacy < 8) {
+      diagnosis.push(reco('warn', `<b>Contrôle :</b> le nombre d'interactions détectées est inférieur à la cible habituelle.`));
+    }
+
+    document.getElementById('strategicDiagnosis').innerHTML = diagnosis.join('') ||
+      '<p style="color:var(--bone-dim)">Aucun diagnostic supplémentaire.</p>';
+
+    // ---- Manabase tab ----
+    const basicColors = {'Plains':'W','Island':'U','Swamp':'B','Mountain':'R','Forest':'G','Wastes':'C'};
+    const basicsCounts = {W:0,U:0,B:0,R:0,G:0,C:0};
+    let basicTotal = 0;
+    const nonbasicLands = [];
+    lands.forEach(r => {
+      if (isBasicLand(r.card)){
+        const base = Object.keys(basicColors).find(b => r.card.name.includes(b));
+        if (base){ basicsCounts[basicColors[base]] += r.qty; basicTotal += r.qty; }
+      } else {
+        nonbasicLands.push(r);
+      }
+    });
+    document.getElementById('manabaseStats').innerHTML = [
+      stat(landCount, 'Terrains au total'),
+      stat(basicTotal, 'Terrains de base'),
+      stat(nonbasicLands.reduce((s,r)=>s+r.qty,0), 'Terrains non-basiques'),
+      stat(landCount ? (landCount/totalAnalyzed*100).toFixed(0)+'%' : '—', 'Part de terrains dans le deck'),
+    ].join('');
+    const maxBasic = Math.max(1, ...Object.values(basicsCounts));
+    document.getElementById('basicsLedger').innerHTML = ['W','U','B','R','G','C']
+      .filter(c => basicsCounts[c] > 0)
+      .map(c => ledgerRow(COLOR_NAMES[c], basicsCounts[c], maxBasic, COLOR_HEX[c]))
+      .join('') || '<p style="color:var(--bone-dim); font-size:13px;">Aucun terrain de base détecté.</p>';
+    document.getElementById('nonbasicCount').textContent = nonbasicLands.reduce((s,r)=>s+r.qty,0);
+    document.getElementById('nonbasicList').innerHTML = nonbasicLands
+      .map(r => `<span>${r.qty>1?`${r.qty}× `:''}${escapeHtml(r.name)}</span>`).join('') || '<span>Aucun</span>';
+
+    // ---- Recommendations tab ----
+    const recos = [];
+
+    if (hasCommander && illegal.length){
+      recos.push(reco('warn', `<b>${illegal.length} carte(s)</b> hors de l'identité de couleur du commandant — elles ne sont pas légales et doivent être remplacées.`));
+    }
+    if (duplicates.length){
+      recos.push(reco('warn', `<b>${duplicates.length} doublon(s)</b> hors terrains de base détecté(s) (format singleton) : ${duplicates.map(d=>d.name).join(', ')}.`));
+    }
+    if (landCount < 33){
+      recos.push(reco('warn', `Seulement <b>${landCount} terrains</b> — la base habituellement recommandée tourne autour de 36-38, à ajuster selon la rampe.`));
+    } else if (landCount > 40){
+      recos.push(reco('info', `<b>${landCount} terrains</b> — un peu au-dessus de la norme (36-38) ; vérifiez que ce n'est pas au détriment de la rampe ou de l'interaction.`));
+    } else {
+      recos.push(reco('ok', `<b>${landCount} terrains</b> — dans la fourchette habituelle (36-38).`));
+    }
+    if (rampCount < 8){
+      recos.push(reco('warn', `<b>${rampCount} source(s) de rampe</b> détectée(s) — viser environ 8-10 pour fluidifier la courbe.`));
+    } else {
+      recos.push(reco('ok', `<b>${rampCount} sources de rampe</b> — un volume confortable.`));
+    }
+    if (drawCount < 8){
+      recos.push(reco('warn', `<b>${drawCount} source(s) de pioche/avantage</b> — viser environ 8-10 pour ne pas s'essouffler en partie longue.`));
+    } else {
+      recos.push(reco('ok', `<b>${drawCount} sources de pioche</b> — un volume confortable.`));
+    }
+    if (interactionCountLegacy < 8){
+      recos.push(reco('warn', `<b>${interactionCountLegacy} pièce(s) d'interaction</b> (suppression ciblée + balayages) — viser environ 8-10 pour gérer les menaces adverses.`));
+    } else {
+      recos.push(reco('ok', `<b>${interactionCountLegacy} pièces d'interaction</b> — un volume confortable.`));
+    }
+    if (avgCmc > 3.3){
+      recos.push(reco('info', `Courbe assez haute (CMV moyenne ${avgCmc.toFixed(2)}) — assurez-vous d'avoir assez de rampe et de terrains pour la soutenir.`));
+    } else if (avgCmc < 2.2 && nonlandCount > 0){
+      recos.push(reco('info', `Courbe très basse (CMV moyenne ${avgCmc.toFixed(2)}) — le deck sera rapide, potentiellement au prix d'impact en milieu/fin de partie.`));
+    }
+    if (totalDeclared && totalDeclared !== 99 && totalDeclared !== 100){
+      recos.push(reco('info', `${totalDeclared} cartes déclarées dans la liste principale — un deck Commander standard compte 99 cartes + 1 commandant (ou 98 + 2 en partenaires).`));
+    }
+    document.getElementById('recoList').innerHTML = recos.join('') || '<p style="color:var(--bone-dim);">Aucune remarque particulière.</p>';
+
+    const fastMana = found.filter(r => FAST_MANA.has(r.name.toLowerCase()));
+    const extraTurns = found.filter(r => isExtraTurn(r.card));
+    document.getElementById('powerStats').innerHTML = [
+      stat(fastMana.reduce((s,r)=>s+r.qty,0), 'Mana rapide reconnu'),
+      stat(catResults.find(c=>c.key==='tutor').count, 'Tuteurs'),
+      stat(catResults.find(c=>c.key==='counter').count, 'Contresorts'),
+      stat(extraTurns.reduce((s,r)=>s+r.qty,0), 'Tours supplémentaires'),
+    ].join('');
+  }
+
+  function renderCurve(nonland){
+    const buckets = {0:[],1:[],2:[],3:[],4:[],5:[],6:[],'7+':[]};
+    nonland.forEach(r => {
+      const cmc = Math.round(r.card.cmc || 0);
+      const key = cmc >= 7 ? '7+' : String(cmc);
+      for (let i=0;i<r.qty;i++) buckets[key].push(/creature/i.test(combinedTypeLine(r.card)) ? 'creature' : 'spell');
+    });
+    const order = ['0','1','2','3','4','5','6','7+'];
+    const el = document.getElementById('curveViz');
+    el.innerHTML = order.map(k => {
+      const items = buckets[k].sort((a,b)=> a===b?0:(a==='creature'?-1:1));
+      const blocks = items.map(kind => `<div class="curve-block ${kind}"></div>`).join('');
+      return `<div class="curve-col">
+        <div class="curve-count">${items.length || ''}</div>
+        <div class="curve-stack">${blocks}</div>
+        <div class="curve-label">${k}</div>
+      </div>`;
+    }).join('');
+  }
+
+  function stat(num, label){
+    return `<div class="stat"><div class="num">${num}</div><div class="lbl">${label}</div></div>`;
+  }
+  function ledgerRow(name, count, max, color){
+    const pct = Math.max(4, Math.round(count/max*100));
+    return `<div class="ledger-row">
+      <div class="ledger-name">${escapeHtml(name)}</div>
+      <div class="ledger-bar-track"><div class="ledger-bar-fill" style="width:${pct}%; ${color?`background:${color};`:''}"></div></div>
+      <div class="ledger-num">${count}</div>
+    </div>`;
+  }
+  function pip(c){
+    return `<span class="pip" style="background:${COLOR_HEX[c]}">${c}</span>`;
+  }
+  function reco(kind, html){
+    const mark = kind==='warn' ? '✕' : (kind==='ok' ? '✓' : '·');
+    return `<div class="reco ${kind}"><div class="mark">${mark}</div><p>${html}</p></div>`;
+  }
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+})();
+</script>
+
+<script>
+(function(){
+  const comboPanel=document.getElementById('comboPanel');
+  if(!comboPanel) return;
+
+  function esc(s){
+    return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  // Card-name extraction is deliberately conservative. It never invents a combo.
+  // Commander Spellbook remains the authoritative external source when a
+  // matching combo is available.
+  function currentNames(){
+    const input=document.getElementById('listInput');
+    if(!input) return [];
+    const names=[];
+    String(input.value||'').split('\\n').forEach(line=>{
+      line=line.trim();
+      const m=line.match(/^\\d+\\s*x?\\s+(.+)$/i);
+      if(m) names.push(m[1].trim());
+    });
+    return [...new Set(names)];
+  }
+
+  async function spellbookSearch(names){
+    // Public website search fallback. This does not claim a combo unless
+    // the returned page explicitly contains all requested card names.
+    try{
+      const q=encodeURIComponent(names.slice(0,6).join(' '));
+      const r=await fetch('https://commanderspellbook.com/search/?q='+q,
+        {headers:{'Accept':'text/html'}});
+      if(!r.ok) return null;
+      return await r.text();
+    }catch(e){return null;}
+  }
+
+  async function findCombos(){
+    comboPanel.style.display='block';
+    comboPanel.innerHTML='<div class="combo-empty">🔎 Recherche des combos disponibles dans le deck…</div>';
+
+    const names=currentNames();
+    if(!names.length){
+      comboPanel.innerHTML='<div class="combo-empty">Colle d’abord une decklist puis lance l’analyse.</div>';
+      return;
+    }
+
+    // We do not present speculative combinations. If the external source cannot
+    // be queried from the current browser context, say so rather than inventing.
+    const html=await spellbookSearch(names);
+    if(!html){
+      comboPanel.innerHTML=
+        '<div class="combo-empty"><strong>Aucun résultat vérifiable pour le moment.</strong><br>'+
+        'La recherche Commander Spellbook est bloquée par le navigateur ou nécessite une recherche directe. '+
+        'Aucun combo ne sera inventé.</div>';
+      return;
+    }
+
+    comboPanel.innerHTML=
+      '<div class="combo-empty"><strong>Recherche Commander Spellbook effectuée.</strong><br>'+
+      'La prochaine étape consiste à brancher son résultat structuré pour afficher chaque combo, ses cartes, les étapes et la condition de victoire.</div>';
+  }
+
+  document.addEventListener('click',e=>{
+    const tab=e.target.closest('[data-tab="comboPanel"]');
+    if(tab){
+      e.preventDefault();
+      document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+      tab.classList.add('active');
+      findCombos();
+    }
+  });
+})();
+</script>
+
+
+<script>
+(function(){
+  const panel=document.getElementById('comboPanel');
+  if(!panel)return;
+
+  const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+
+  function deck(){
+    const input=document.getElementById('listInput');
+    if(!input)return [];
+    return String(input.value||'').split(/\r?\n/).map(line=>{
+      const m=line.trim().match(/^(\d+)\s*x?\s+(.+)$/i);
+      return m?{name:m[2].trim(),qty:Number(m[1])}:null;
+    }).filter(Boolean);
+  }
+
+  function comboCards(c){
+    const raw=c.cards||c.card_names||c.components||[];
+    return raw.map(x=>typeof x==='string'?x:(x.name||x.card||x.card_name||'')).filter(Boolean);
+  }
+
+  function render(c){
+    const cards=comboCards(c);
+    const result=c.results||c.outcome||c.description||'';
+    const steps=c.steps||[];
+    return `<article class="combo-card">
+      <h3>⚡ Combo</h3>
+      <div class="combo-pieces">${cards.map(x=>`<span class="combo-piece">${esc(x)}</span>`).join('')}</div>
+      ${result?`<div class="combo-result"><b>Résultat :</b> ${esc(Array.isArray(result)?result.join(', '):result)}</div>`:''}
+      ${Array.isArray(steps)&&steps.length?`<div class="combo-steps"><b>Étapes :</b><br>${steps.map((x,i)=>`${i+1}. ${esc(typeof x==='string'?x:(x.text||x.description||''))}`).join('<br>')}</div>`:''}
+    </article>`;
+  }
+
+  async function run(){
+    const cards=deck();
+    if(!cards.length){
+      panel.innerHTML='<div class="combo-empty">Aucune decklist à analyser.</div>';
+      return;
+    }
+    panel.innerHTML='<div class="combo-empty">🔎 Recherche des combos…</div>';
+
+    try{
+      const r=await fetch('https://backend.commanderspellbook.com/find-my-combos',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Accept':'application/json'},
+        body:JSON.stringify({
+          main:cards.map(x=>({card:x.name,quantity:x.qty})),
+          commanders:[]
+        })
+      });
+      if(!r.ok)throw new Error('Service Combo indisponible ('+r.status+')');
+      const data=await r.json();
+      const found=data.included||data.combos||data.results||[];
+
+      if(!Array.isArray(found)||!found.length){
+        panel.innerHTML='<div class="combo-empty"><b>Aucune combo trouvée.</b></div>';
+        return;
+      }
+      panel.innerHTML='<div class="combo-toolbar"><b>⚡ Combos trouvées</b><span class="combo-meta">'+found.length+'</span></div>'+
+        '<div class="combo-grid">'+found.map(render).join('')+'</div>';
+    }catch(err){
+      panel.innerHTML='<div class="combo-empty"><b>Impossible de rechercher les combos.</b><br>'+esc(err.message)+'</div>';
+    }
+  }
+
+  document.addEventListener('click',e=>{
+    const tab=e.target.closest('[data-tab="comboPanel"]');
+    if(!tab)return;
+    e.preventDefault();
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    tab.classList.add('active');
+    document.querySelectorAll('[data-tab]').forEach(t=>{
+      if(t!==tab){
+        const id=t.getAttribute('data-tab');
+        const el=document.getElementById(id);
+        if(el)el.style.display='none';
+      }
+    });
+    panel.style.display='block';
+    run();
+  });
+})();
+</script>
+
+</body>
+</html>
